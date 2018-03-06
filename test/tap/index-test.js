@@ -2,7 +2,7 @@
 
 const test = require('tap').test;
 const sandbox = require('@log4js-node/sandboxed-module');
-const appender = require('../../lib'); //eslint-disable-line
+const appender = require('../../lib');
 
 function setupLogging(category, options) {
   const udpSent = {};
@@ -18,7 +18,7 @@ function setupLogging(category, options) {
           udpSent.length = length;
           udpSent.offset = 0;
           udpSent.buffer = buffer;
-          callback(undefined, length);
+          callback(udpSent.error, length);
         },
         close: function (cb) {
           socket.closed = true;
@@ -28,14 +28,36 @@ function setupLogging(category, options) {
     }
   };
 
+  const fakeConsole = {
+    error: function (message) {
+      this.message = message;
+    }
+  };
+
+  const fakeLayouts = {
+    dummyLayout: function (event) {
+      fakeLayouts.dummyLayoutUsed = true;
+      return event.data[0];
+    },
+    layout: function (type, config) {
+      fakeLayouts.type = type;
+      fakeLayouts.config = config;
+      return () => 'I used a custom layout';
+    }
+  };
+
   const log4js = sandbox.require('log4js', {
     requires: {
-      dgram: fakeDgram
+      dgram: fakeDgram,
+      './layouts': fakeLayouts
+    },
+    globals: {
+      console: fakeConsole
     }
   });
 
   options = options || {};
-  options.type = 'logstashUDP';
+  options.type = '../../../lib';
   log4js.configure({
     appenders: { logstash: options },
     categories: { default: { appenders: ['logstash'], level: 'trace' } }
@@ -44,12 +66,19 @@ function setupLogging(category, options) {
   return {
     logger: log4js.getLogger(category),
     log4js: log4js,
+    console: fakeConsole,
+    layouts: fakeLayouts,
     results: udpSent,
     socket: socket
   };
 }
 
 test('logstashUDP appender', (batch) => {
+  batch.test('should export a configure function', (t) => {
+    t.type(appender.configure, 'function');
+    t.end();
+  });
+
   batch.test('a UDP packet should be sent', (t) => {
     const setup = setupLogging('myCategory', {
       host: '127.0.0.1',
@@ -60,10 +89,6 @@ test('logstashUDP appender', (batch) => {
       fields: {
         field1: 'value1',
         field2: 'value2'
-      },
-      layout: {
-        type: 'pattern',
-        pattern: '%m'
       }
     });
     setup.logger.log('trace', 'Log event #1');
@@ -86,6 +111,8 @@ test('logstashUDP appender', (batch) => {
       t.equal(json[keys[i]], fields[keys[i]]);
     }
 
+    t.ok(setup.layouts.dummyLayoutUsed);
+
     t.equal(JSON.stringify(json.fields), JSON.stringify(fields));
     t.equal(json.message, 'Log event #1');
     // Assert timestamp, up to hours resolution.
@@ -98,16 +125,29 @@ test('logstashUDP appender', (batch) => {
     t.end();
   });
 
+  batch.test('udp errors', (t) => {
+    const setup = setupLogging('myLogger', {
+      host: '127.0.0.1',
+      port: 10001,
+      type: 'logstashUDP',
+      category: 'myLogger'
+    });
+    setup.results.error = new Error('Some sort of UDP thing');
+    setup.logger.log('trace', 'Log event #1');
+
+    t.test('should be sent to console.error', (assert) => {
+      assert.equal(setup.console.message, 'log4js.logstashUDP - %s:%p Error: %s');
+      assert.end();
+    });
+    t.end();
+  });
+
   batch.test('default options', (t) => {
     const setup = setupLogging('myLogger', {
       host: '127.0.0.1',
       port: 10001,
       type: 'logstashUDP',
-      category: 'myLogger',
-      layout: {
-        type: 'pattern',
-        pattern: '%m'
-      }
+      category: 'myLogger'
     });
     setup.logger.log('trace', 'Log event #1');
 
@@ -118,6 +158,27 @@ test('logstashUDP appender', (batch) => {
       JSON.stringify({ level: 'TRACE', category: 'myLogger' })
     );
 
+    t.end();
+  });
+
+  batch.test('using a custom layout', (t) => {
+    const setup = setupLogging('myLogger', {
+      host: '127.0.0.1',
+      port: 10001,
+      type: 'logstashUDP',
+      category: 'myLogger',
+      layout: {
+        type: 'pattern',
+        pattern: '%m'
+      }
+    });
+    setup.logger.info('this will not appear in the message');
+
+    t.equal(setup.layouts.type, 'pattern');
+    t.equal(setup.layouts.config.pattern, '%m');
+
+    const json = JSON.parse(setup.results.buffer.toString());
+    t.equal(json.message, 'I used a custom layout');
     t.end();
   });
 
@@ -133,10 +194,6 @@ test('logstashUDP appender', (batch) => {
         field2: function () {
           return 'evaluated at runtime';
         }
-      },
-      layout: {
-        type: 'pattern',
-        pattern: '%m'
       }
     });
     setup.logger.log('trace', 'Log event #1');
@@ -153,10 +210,7 @@ test('logstashUDP appender', (batch) => {
       host: '127.0.0.1',
       port: 10001,
       type: 'logstashUDP',
-      category: 'myLogger',
-      layout: {
-        type: 'dummy'
-      }
+      category: 'myLogger'
     });
     setup.logger.log('trace', 'Log event #1', { extra1: 'value1', extra2: 'value2' });
 
@@ -177,10 +231,7 @@ test('logstashUDP appender', (batch) => {
       port: 10001,
       type: 'logstashUDP',
       category: 'myLogger',
-      args: 'direct',
-      layout: {
-        type: 'dummy'
-      }
+      args: 'direct'
     });
 
     setup.logger.log('info', 'Log event with fields', { extra1: 'value1', extra2: 'value2' });
@@ -198,10 +249,7 @@ test('logstashUDP appender', (batch) => {
       port: 10001,
       type: 'logstashUDP',
       category: 'myLogger',
-      args: 'fields',
-      layout: {
-        type: 'dummy'
-      }
+      args: 'fields'
     });
 
     setup.logger.log('info', 'Log event with fields', { extra1: 'value1', extra2: 'value2' });
@@ -219,10 +267,7 @@ test('logstashUDP appender', (batch) => {
       host: '127.0.0.1',
       port: 10001,
       type: 'logstashUDP',
-      category: 'myLogger',
-      layout: {
-        type: 'dummy'
-      }
+      category: 'myLogger'
     });
 
     const msg = 'test message with null';
@@ -238,10 +283,7 @@ test('logstashUDP appender', (batch) => {
       host: '127.0.0.1',
       port: 10001,
       type: 'logstashUDP',
-      category: 'myLogger',
-      layout: {
-        type: 'dummy'
-      }
+      category: 'myLogger'
     });
 
     const msg = 'test message with undefined';
@@ -257,10 +299,7 @@ test('logstashUDP appender', (batch) => {
       host: '127.0.0.1',
       port: 10001,
       type: 'logstashUDP',
-      category: 'myLogger',
-      layout: {
-        type: 'dummy'
-      }
+      category: 'myLogger'
     });
     setup.log4js.shutdown(() => {
       t.ok(setup.socket.closed);
