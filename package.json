@@ -1,6 +1,6 @@
 {
   "name": "@log4js-node/logstashUDP",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Logstash UDP Appender for log4js-node",
   "homepage": "https://log4js-node.github.io/log4js-node/",
   "files": [
@@ -33,7 +33,7 @@
     "prepush": "npm test",
     "commitmsg": "validate-commit-msg",
     "pretest": "eslint 'lib/**/*.js' 'test/**/*.js'",
-    "test": "tap 'test/tap/**/*.js'",
+    "test": "tap 'test/tap/**/*.js' --100",
     "codecov": "tap 'test/tap/**/*.js' --cov --coverage-report=lcov && codecov"
   },
   "directories": {
