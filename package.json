@@ -1,5 +1,5 @@
 {
-  "name": "@log4js-node/logstashUDP",
+  "name": "@log4js-node/logstashudp",
   "version": "1.0.0",
   "description": "Logstash UDP Appender for log4js-node",
   "homepage": "https://log4js-node.github.io/log4js-node/",

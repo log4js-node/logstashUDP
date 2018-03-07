@@ -2,14 +2,14 @@
 
 This is an optional appender for [log4js-node](https://log4js-node.github.io/log4js-node/).
 ```bash
-npm install @log4js-node/logstashUDP
+npm install @log4js-node/logstashudp
 ```
 
 The logstashUDP appender supports sending log events to a [Logstash](https://www.elastic.co/products/logstash) server. It uses the node.js core UDP support, and so requires no extra dependencies. Remember to call `log4js.shutdown` in your application if you want the UDP socket closed cleanly.
 
 ## Configuration
 
-* `type` - `@log4js-node/logstashUDP`
+* `type` - `@log4js-node/logstashudp`
 * `host` - `string` - hostname (or IP-address) of the logstash server
 * `port` - `integer` - port of the logstash server
 * `logType` - `string` (optional) - used for the type field in the logstash data
@@ -23,7 +23,7 @@ The logstashUDP appender supports sending log events to a [Logstash](https://www
 log4js.configure({
   appenders: {
     logstash: {
-      type: '@log4js-node/logstashUDP',
+      type: '@log4js-node/logstashudp',
       host: 'log.server',
       port: '12345',
       logType: 'application',
