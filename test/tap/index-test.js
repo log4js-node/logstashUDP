@@ -1,9 +1,10 @@
 'use strict';
 
 const debug = require('debug')('log4js:test.logstashUDP');
+const path = require('path');
 const test = require('tap').test;
 const sandbox = require('@log4js-node/sandboxed-module');
-const appender = require('../../lib');
+const appenderPath = path.resolve(__dirname, '../../lib');
 
 function setupLogging(category, options) {
   const udpSent = {};
@@ -58,7 +59,7 @@ function setupLogging(category, options) {
   });
 
   options = options || {};
-  options.type = '../../../lib';
+  options.type = appenderPath;
   log4js.configure({
     appenders: {logstash: options},
     categories: {default: {appenders: ['logstash'], level: 'trace'}}
@@ -76,7 +77,7 @@ function setupLogging(category, options) {
 
 test('logstashUDP appender', batch => {
   batch.test('should export a configure function', t => {
-    t.type(appender.configure, 'function');
+    t.type(require(appenderPath).configure, 'function');
     t.end();
   });
 
