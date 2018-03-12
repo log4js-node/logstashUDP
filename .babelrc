@@ -1,4 +1,6 @@
 {
   "plugins": ["lodash"],
-  "presets": [["@babel/env", { "targets": { "node": 6 } }]]
+  "presets": [
+    ["env", {"targets": {"node": "6"}}]
+  ]
 }
