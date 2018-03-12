@@ -61,3 +61,11 @@ typings/
 .idea
 *.iml
 
+# editorconfig
+.editorconfig
+
+# babel output
+lib
+
+# npm
+package-lock.json

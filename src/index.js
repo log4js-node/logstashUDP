@@ -1,16 +1,32 @@
-'use strict';
-
+// There is something wrong in the log4js.configuration to cause Math not found if import all lodash here
+const _ = require('lodash/core');
+const debug = require('debug')('log4js:logstashUDP');
 const dgram = require('dgram');
 const util = require('util');
 
 function sendLog(udp, host, port, logObject) {
+  debug('Log being sent over UDP');
   const buffer = Buffer.from(JSON.stringify(logObject));
 
-  udp.send(buffer, 0, buffer.length, port, host, (err) => {
+  udp.send(buffer, 0, buffer.length, port, host, err => {
     if (err) {
-      console.error('log4js.logstashUDP - %s:%p Error: %s', host, port, util.inspect(err)); // eslint-disable-line
+      console.error(`log4js.logstashUDP - ${host}:${port} Error: ${util.inspect(err)}.`);
     }
   });
+}
+
+function checkArgs(argsValue, logUnderFields) {
+  if ((!argsValue) || (argsValue === 'both')) {
+    return true;
+  }
+
+  if (logUnderFields && (argsValue === 'fields')) {
+    return true;
+  }
+
+  if ((!logUnderFields) && (argsValue === 'direct')) {
+    return true;
+  }
 }
 
 function logstashUDP(config, layout) {
@@ -21,47 +37,31 @@ function logstashUDP(config, layout) {
     config.fields = {};
   }
 
-  function checkArgs(argsValue, logUnderFields) {
-    if ((!argsValue) || (argsValue === 'both')) {
-      return true;
-    }
-
-    if (logUnderFields && (argsValue === 'fields')) {
-      return true;
-    }
-
-    if ((!logUnderFields) && (argsValue === 'direct')) {
-      return true;
-    }
-
-    return false;
+  /*
+  https://gist.github.com/jordansissel/2996677
+  {
+  'message'  => 'hello world',
+  '@version'  => '1',
+  '@timestamp' => '2014-04-22T23:03:14.111Z',
+  'type'    => 'stdin',
+  'host'    => 'hello.local'
   }
-
+  @timestamp is the ISO8601 high-precision timestamp for the event.
+  @version is the version number of this json schema
+  Every other field is valid and fine.
+  */
   function log(loggingEvent) {
-    /*
-     https://gist.github.com/jordansissel/2996677
-     {
-     'message'  => 'hello world',
-     '@version'  => '1',
-     '@timestamp' => '2014-04-22T23:03:14.111Z',
-     'type'    => 'stdin',
-     'host'    => 'hello.local'
-     }
-     @timestamp is the ISO8601 high-precision timestamp for the event.
-     @version is the version number of this json schema
-     Every other field is valid and fine.
-     */
-
     const fields = {};
-    Object.keys(config.fields).forEach((key) => {
-      fields[key] = typeof config.fields[key] === 'function' ? config.fields[key](loggingEvent) : config.fields[key];
+    _.keys(config.fields).forEach(key => {
+      fields[key] = typeof config.fields[key] === 'function'
+        ? config.fields[key](loggingEvent)
+        : config.fields[key];
     });
 
-    /* eslint no-prototype-builtins:1,no-restricted-syntax:[1, "ForInStatement"] */
     if (loggingEvent.data.length > 1) {
       const secondEvData = loggingEvent.data[1];
       if ((secondEvData !== undefined) && (secondEvData !== null)) {
-        Object.keys(secondEvData).forEach((key) => {
+        _.keys(secondEvData).forEach(key => {
           fields[key] = secondEvData[key];
         });
       }
@@ -81,9 +81,7 @@ function logstashUDP(config, layout) {
     }
 
     if (checkArgs(config.args, false)) {
-      Object.keys(fields).forEach((key) => {
-        logObject[key] = fields[key];
-      });
+      _.forEach(fields, (value, key) => logObject[key] = value);
     }
 
     sendLog(udp, config.host, config.port, logObject);
@@ -93,6 +91,7 @@ function logstashUDP(config, layout) {
     udp.close(cb);
   };
 
+  debug('Appender set and returned.');
   return log;
 }
 
@@ -101,7 +100,6 @@ function configure(config, layouts) {
   if (config.layout) {
     layout = layouts.layout(config.layout.type, config.layout);
   }
-
   return logstashUDP(config, layout);
 }
 
