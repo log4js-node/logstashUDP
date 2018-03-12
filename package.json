@@ -34,7 +34,7 @@
     "compile": "babel src -d lib",
     "prepublish": "npm test",
     "commitmsg": "commitlint -e $GIT_PARAMS",
-    "pretest": "npm run codecheck compile",
+    "pretest": "npm run codecheck && npm run compile",
     "test": "tap 'test/tap/**/*.js' --100",
     "codecov": "tap 'test/tap/**/*.js' --cov --coverage-report=lcov && codecov"
   },
