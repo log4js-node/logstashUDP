@@ -1,7 +1,6 @@
 const _ = require('lodash');
 const debug = require('debug')('log4js:test.logstashUDP');
 const path = require('path');
-// const rewiremock = require('rewiremock').default;
 const proxyquire = require('proxyquire-2');
 const assert = require('assert');
 const appenderPath = path.resolve(__dirname, '../src');

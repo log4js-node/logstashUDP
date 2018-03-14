@@ -66,6 +66,3 @@ typings/
 
 # babel output
 lib
-
-# npm
-package-lock.json
