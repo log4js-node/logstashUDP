@@ -1,106 +1,64 @@
-// There is something wrong in the log4js.configuration to cause Math not found if import all lodash here
-const _ = require('lodash/core');
+const _ = require('lodash');
 const debug = require('debug')('log4js:logstashUDP');
+const os = require('os');
 const dgram = require('dgram');
 const util = require('util');
 
-function sendLog(udp, host, port, logObject) {
+function sendLog(udp, host, port, logObject, logError) {
   debug('Log being sent over UDP');
   const buffer = Buffer.from(JSON.stringify(logObject));
 
   udp.send(buffer, 0, buffer.length, port, host, err => {
     if (err) {
-      console.error(`log4js.logstashUDP - ${host}:${port} Error: ${util.inspect(err)}.`);
+      logError(`log4js.logstashUDP - ${host}:${port} Error: ${util.inspect(err)}.`);
     }
   });
 }
 
-function checkArgs(argsValue, logUnderFields) {
-  if ((!argsValue) || (argsValue === 'both')) {
-    return true;
+const defaultVersion = 1;
+const defaultExtraDataProvider = loggingEvent => {
+  if (loggingEvent.data.length > 1) {
+    const secondEvData = loggingEvent.data[1];
+    if (_.isPlainObject(secondEvData)) {
+      return {fields: secondEvData};
+    }
   }
+  return {};
+};
 
-  if (logUnderFields && (argsValue === 'fields')) {
-    return true;
-  }
-
-  if ((!logUnderFields) && (argsValue === 'direct')) {
-    return true;
-  }
-}
-
-function logstashUDP(config, layout) {
+function logstashUDP(config, layout, logError) {
   const udp = dgram.createSocket('udp4');
-  const type = config.logType ? config.logType : config.category;
+  const extraDataProvider = _.isFunction(config.extraDataProvider)
+    ? config.extraDataProvider
+    : defaultExtraDataProvider;
 
-  if (!config.fields) {
-    config.fields = {};
-  }
-
-  /*
-  https://gist.github.com/jordansissel/2996677
-  {
-  'message'  => 'hello world',
-  '@version'  => '1',
-  '@timestamp' => '2014-04-22T23:03:14.111Z',
-  'type'    => 'stdin',
-  'host'    => 'hello.local'
-  }
-  @timestamp is the ISO8601 high-precision timestamp for the event.
-  @version is the version number of this json schema
-  Every other field is valid and fine.
-  */
   function log(loggingEvent) {
-    const fields = {};
-    _.keys(config.fields).forEach(key => {
-      fields[key] = typeof config.fields[key] === 'function'
-        ? config.fields[key](loggingEvent)
-        : config.fields[key];
-    });
-
-    if (loggingEvent.data.length > 1) {
-      const secondEvData = loggingEvent.data[1];
-      if ((secondEvData !== undefined) && (secondEvData !== null)) {
-        _.keys(secondEvData).forEach(key => {
-          fields[key] = secondEvData[key];
-        });
-      }
-    }
-    fields.level = loggingEvent.level.levelStr;
-    fields.category = loggingEvent.categoryName;
-
-    const logObject = {
-      '@version': '1',
+    const oriLogObject = {
+      '@version': defaultVersion,
       '@timestamp': (new Date(loggingEvent.startTime)).toISOString(),
-      type: type,
-      message: layout(loggingEvent)
+      'host': os.hostname(),
+      'level': loggingEvent.level.levelStr.toUpperCase(),
+      'category': loggingEvent.categoryName,
+      'message': layout(loggingEvent)
     };
+    const extraLogObject = extraDataProvider(loggingEvent) || {};
+    const logObject = _.assign(oriLogObject, extraLogObject);
 
-    if (checkArgs(config.args, true)) {
-      logObject.fields = fields;
-    }
-
-    if (checkArgs(config.args, false)) {
-      _.forEach(fields, (value, key) => logObject[key] = value);
-    }
-
-    sendLog(udp, config.host, config.port, logObject);
+    sendLog(udp, config.host, config.port, logObject, logError);
   }
 
-  log.shutdown = function (cb) {
-    udp.close(cb);
-  };
+  log.shutdown = cb => udp.close(cb);
 
-  debug('Appender set and returned.');
+  debug('Appender has been set.');
   return log;
 }
 
-function configure(config, layouts) {
+function configure(config, layouts, logError = console.error) {
   let layout = layouts.dummyLayout;
   if (config.layout) {
     layout = layouts.layout(config.layout.type, config.layout);
   }
-  return logstashUDP(config, layout);
+  return logstashUDP(config, layout, logError);
 }
 
 module.exports.configure = configure;

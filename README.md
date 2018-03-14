@@ -12,25 +12,18 @@ The logstashUDP appender supports sending log events to a [Logstash](https://www
 * `type` - `@log4js-node/logstashudp`
 * `host` - `string` - hostname (or IP-address) of the logstash server
 * `port` - `integer` - port of the logstash server
-* `logType` - `string` (optional) - used for the type field in the logstash data
-* `category` - `string` (optional) - used for the type field of the logstash data if logType is not defined
-* `fields` - object (optional) - extra fields to log with each event. User-defined fields can be either a string or a function. Functions will be passed the log event, and should return a string.
 * `layout` - (optional, defaults to dummyLayout) - used for the message field of the logstash data (see layouts)
-* `args` - (optional, defaults to both) - determines how to log arguments and configuration fields: direct logs them as direct properties of the log object, fields logs them as child properties of the fields property, and both logs both.
+* `extraDataProvider` - function (optional, defaults to put the second param of log to fields) - used to enhance the object sent to Logstash via UDP. this will be passed the log event and should return a object.
 
-## Example (default config)
+## Example
+### default config
 ```javascript
 log4js.configure({
   appenders: {
     logstash: {
       type: '@log4js-node/logstashudp',
       host: 'log.server',
-      port: '12345',
-      logType: 'application',
-      fields: { biscuits: 'digestive', tea: 'tetley', user: function(logEvent) {
-          return AuthLibrary.currentUser();
-        }
-      }
+      port: 12345
     }
   },
   categories: {
@@ -45,15 +38,57 @@ This will result in a JSON message being sent to log.server:12345 over UDP, with
 {
   '@version': '1',
   '@timestamp': '2014-04-22T23:03:14.111Z',
-  'type': 'application',
+  'host': 'yourHostname',
+  'level': 'INFO',
+  'category': 'default',
   'message': 'important log message',
   'fields': {
-    'level': 'INFO',
-    'category': 'default',
     'biscuits': 'hobnob',
-    'user': 'charlie',
-    'cheese': 'gouda',
-    'tea': 'tetley'
+    'cheese': 'gouda'
   }
 }
 ```
+### use estraDataProvider
+```javascript
+log4js.configure({
+  appenders: {
+    logstash: {
+      type: '@log4js-node/logstashudp',
+      host: 'log.server',
+      port: 12345,
+      extraDataProvider: loggingEvent => ({
+        host: 'anotherHostname',  // this will replace the default real host
+        clientIp: '1.2.3.4', // this will be added
+        fields: {
+          tag: 'myTag', // this will be added to the fields
+          pid: loggingEvent.pid, // this will be added to the fields
+          cheese: 'defaultCheese' // this will be added to the fields but will not be replaced in this example
+        }
+      })
+    }
+  },
+  categories: {
+    default: { appenders: ['logstash'], level: 'info' }
+  }
+});
+const logger = log4js.getLogger();
+logger.info("important log message", { cheese: 'gouda', biscuits: 'hobnob' });
+```
+This will result in a JSON message being sent to log.server:12345 over UDP, with the following format:
+```javascript
+{
+  '@version': '1',
+  '@timestamp': '2014-04-22T23:03:14.111Z',
+  'host': 'anotherHostname',
+  'level': 'INFO',
+  'category': 'default',
+  'message': 'important log message',
+  'clientIp': '1.2.3.4',
+  'fields': {
+    'cheese': 'defaultCheese',
+    'tag': 'myTag',
+    'pid': 123
+  }
+}
+```
+So, if not using the default `extraDataProvider`, you have to put the second param of the log to the fields yourself if you want.
