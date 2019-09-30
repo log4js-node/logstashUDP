@@ -236,4 +236,32 @@ describe('logstashUDP appender', () => {
       assert.ok(fakeDgram.socket.closed);
     });
   });
+
+  it('should not crash on events with circular references', () => {
+    const circularEvent = _.assign({}, commonLoggingEvent, {data: []});
+    circularEvent.data[0] = circularEvent;
+
+    const fakeDgram = fakeDgramProducer();
+    const fakeConsole = fakeConsoleProducer();
+
+    const logger = fakeLoggerProducer({fakeDgram, fakeConsole});
+    logger(circularEvent);
+    logger(commonLoggingEvent);
+
+    const messageSent = fakeDgram.messageStore[0];
+    let json = JSON.parse(messageSent.buffer.toString());
+    assert.strictEqual(json.level, 'TRACE');
+    assert.strictEqual(json.category, commonLoggingEvent.categoryName);
+    assert.ok(
+      json.message.data[0].indexOf(
+        'Event could not be serialised to JSON: Converting circular structure to JSON'
+      ) > -1
+    );
+
+    const normalMessage = fakeDgram.messageStore[1];
+    json = JSON.parse(normalMessage.buffer.toString());
+    assert.strictEqual(json.level, 'TRACE');
+    assert.equal(json.message, commonLoggingEvent.data[0]);
+
+  });
 });
