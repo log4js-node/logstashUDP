@@ -6,7 +6,14 @@ const util = require('util');
 
 function sendLog(udp, host, port, logObject, logError) {
   debug('Log being sent over UDP');
-  const buffer = Buffer.from(JSON.stringify(logObject));
+  let buffer;
+  try {
+    buffer = Buffer.from(JSON.stringify(logObject));
+  } catch (e) {
+    debug('Could not serialise log event to JSON', e, logObject);
+    logObject.message.data = ['Event could not be serialised to JSON: ' + e.message];
+    buffer = Buffer.from(JSON.stringify(logObject));
+  }
 
   udp.send(buffer, 0, buffer.length, port, host, err => {
     if (err) {
