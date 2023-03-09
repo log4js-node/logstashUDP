@@ -46,7 +46,7 @@
     "lodash": "^4.17.15"
   },
   "devDependencies": {
-    "@commitlint/cli": "^8.2.0",
+    "@commitlint/cli": "^17.4.4",
     "@commitlint/config-conventional": "^6.1.3",
     "eslint": "^5.16.0",
     "husky": "^0.14.3",
